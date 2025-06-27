@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Online Audio Call App</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    body {
+      background: linear-gradient(135deg, #1a2a6c, #b21f1f, #1a2a6c);
+      color: white;
+      min-height: 100vh;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    .app-container {
+      width: 100%;
+      max-width: 900px;
+      background: rgba(0, 0, 30, 0.8);
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+    }
+    
+    .status-bar {
+      padding: 15px;
+      background: rgba(0, 0, 50, 0.7);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+    }
+    
+    .status-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #4CAF50;
+    }
+    
+    .status-bar.connecting .status-indicator {
+      background: #FFC107;
+    }
+    
+    .status-bar.disconnected .status-indicator {
+      background: #F44336;
+    }
+    
+    .main-content {
+      padding: 30px;
+      min-height: 500px;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .call-view {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex-grow: 1;
+      text-align: center;
+      gap: 30px;
+    }
+    
+    .call-header {
+      margin-bottom: 20px;
+    }
+    
+    .call-timer {
+      font-size: 3rem;
+      font-weight: bold;
+      color: #4CAF50;
+      text-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+      margin-bottom: 10px;
+    }
+    
+    .call-partner {
+      font-size: 1.5rem;
+      margin-bottom: 20px;
+    }
+    
+    .call-controls {
+      display: flex;
+      gap: 25px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    
+    .control-btn {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    }
+    
+    .control-btn:hover {
+      transform: scale(1.1);
+      background: rgba(255, 255, 255, 0.2);
+    }
+    
+    .control-btn.end-call {
+      background: #F44336;
+    }
+    
+    .control-btn.end-call:hover {
+      background: #d32f2f;
+      transform: scale(1.1);
+    }
+    
+    .control-btn.active {
+      background: #4CAF50;
+    }
+    
+    .volume-control {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 15px;
+      width: 100%;
+      max-width: 300px;
+    }
+    
+    .volume-control input {
+      flex-grow: 1;
+      height: 8px;
+      -webkit-appearance: none;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      outline: none;
+    }
+    
+    .volume-control input::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #4CAF50;
+      cursor: pointer;
+    }
+    
+    .incoming-call-view {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex-grow: 1;
+      text-align: center;
+      gap: 30px;
+    }
+    
+    .pulse-ring {
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      background: rgba(76, 175, 80, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+      }
+      70% {
+        box-shadow: 0 0 0 30px rgba(76, 175, 80, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+      }
+    }
+    
+    .avatar {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: #1a2a6c;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+    }
+    
+    .caller-id {
+      font-size: 1.8rem;
+      margin: 15px 0;
+      letter-spacing: 1px;
+    }
+    
+    .call-status {
+      font-size: 1.2rem;
+      color: #ccc;
+    }
+    
+    .call-actions {
+      display: flex;
+      gap: 40px;
+      margin-top: 20px;
+    }
+    
+    .action-btn {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    }
+    
+    .action-btn.reject {
+      background: #F44336;
+    }
+    
+    .action-btn.accept {
+      background: #4CAF50;
+    }
+    
+    .action-btn:hover {
+      transform: scale(1.1);
+    }
+    
+    .user-list-view {
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+    }
+    
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+    }
+    
+    .header h2 {
+      font-size: 1.8rem;
+      font-weight: 600;
+    }
+    
+    .refresh-btn {
+      width: 45px;
+      height: 45px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+    }
+    
+    .refresh-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: rotate(90deg);
+    }
+    
+    .user-list {
+      flex-grow: 1;
+      overflow-y: auto;
+      max-height: 350px;
+      padding-right: 10px;
+    }
+    
+    .user-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      margin-bottom: 15px;
+      transition: all 0.3s ease;
+    }
+    
+    .user-item:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: translateY(-3px);
+    }
+    
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+    
+    .user-info .avatar {
+      width: 50px;
+      height: 50px;
+      font-size: 20px;
+    }
+    
+    .user-id {
+      font-weight: 500;
+      font-size: 1.1rem;
+    }
+    
+    .user-status {
+      font-size: 0.9rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(76, 175, 80, 0.2);
+    }
+    
+    .user-status.busy {
+      background: rgba(244, 67, 54, 0.2);
+    }
+    
+    .call-btn {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(76, 175, 80, 0.3);
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s ease;
+    }
+    
+    .call-btn:hover {
+      background: rgba(76, 175, 80, 0.5);
+      transform: scale(1.1);
+    }
+    
+    .call-btn.disabled {
+      background: rgba(255, 255, 255, 0.1);
+      color: #777;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      height: 100%;
+      padding: 40px;
+      text-align: center;
+      color: #aaa;
+    }
+    
+    .empty-state i {
+      font-size: 3rem;
+    }
+    
+    .calling-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 30, 0.9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 30px;
+      z-index: 10;
+    }
+    
+    .calling-indicator {
+      position: relative;
+    }
+    
+    .calling-info {
+      font-size: 1.5rem;
+      text-align: center;
+    }
+    
+    .cancel-btn {
+      padding: 12px 35px;
+      border-radius: 30px;
+      border: none;
+      background: rgba(244, 67, 54, 0.3);
+      color: white;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-top: 20px;
+    }
+    
+    .cancel-btn:hover {
+      background: rgba(244, 67, 54, 0.5);
+      transform: scale(1.05);
+    }
+    
+    .error-message {
+      background: rgba(244, 67, 54, 0.8);
+      padding: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 15px;
+    }
+    
+    .close-error {
+      background: transparent;
+      border: none;
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 5px;
+    }
+    
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 30, 0.9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      z-index: 20;
+    }
+    
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #4CAF50;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    
+    .connection-info {
+      padding: 15px;
+      background: rgba(0, 0, 50, 0.5);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: center;
+      font-size: 14px;
+    }
+    
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <div class="status-bar connected">
+      <div class="status-indicator"></div>
+      <span id="connection-status">CONNECTING...</span>
+    </div>
+    
+    <div class="main-content">
+      <div id="in-call-view" class="call-view hidden">
+        <div class="call-header">
+          <div class="call-timer" id="call-timer">00:00</div>
+          <div class="call-partner" id="call-partner">In call with ...</div>
+        </div>
+        
+        <div class="call-controls">
+          <button id="mute-btn" class="control-btn">
+            <i class="fas fa-microphone"></i>
+          </button>
+          
+          <button id="end-call-btn" class="control-btn end-call">
+            <i class="fas fa-phone-slash"></i>
+          </button>
+          
+          <div class="volume-control">
+            <i class="fas fa-volume-up"></i>
+            <input type="range" id="volume-control" min="0" max="1" step="0.1" value="0.7">
+          </div>
+        </div>
+      </div>
+      
+      <div id="incoming-call-view" class="incoming-call-view hidden">
+        <div class="pulse-ring">
+          <div class="avatar">
+            <i class="fas fa-user"></i>
+          </div>
+        </div>
+        
+        <div class="caller-info">
+          <div class="caller-id" id="caller-id">...</div>
+          <div class="call-status">Incoming Call...</div>
+        </div>
+        
+        <div class="call-actions">
+          <button id="reject-btn" class="action-btn reject">
+            <i class="fas fa-times"></i>
+          </button>
+          <button id="accept-btn" class="action-btn accept">
+            <i class="fas fa-check"></i>
+          </button>
+        </div>
+      </div>
+      
+      <div id="user-list-view" class="user-list-view">
+        <div class="header">
+          <h2>Online Users (<span id="user-count">0</span>)</h2>
+          <button id="refresh-btn" class="refresh-btn">
+            <i class="fas fa-sync"></i>
+          </button>
+        </div>
+        
+        <div class="user-list" id="user-list">
+          <div class="empty-state">
+            <i class="fas fa-user"></i>
+            <p>No other users online</p>
+            <p class="hint">Open another browser to test</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="connection-info">
+      <i class="fas fa-info-circle"></i>
+      <span id="server-info">Connecting to server...</span>
+    </div>
+  </div>
+  
+  <audio id="local-audio" autoplay muted></audio>
+  <audio id="remote-audio" autoplay></audio>
+  
+  <script>
+    // Configuration
+    const SOCKET_URL = 'https://server-production-ee20.up.railway.app';
+    
+    // State management
+    let localStream = null;
+    let remoteStream = null;
+    let peerConnection = null;
+    let socket = null;
+    let iceCandidates = [];
+    let callTimeout = null;
+    let callTimer = null;
+    let callDuration = 0;
+    let callPartner = null;
+    let currentSocketId = '';
+    let incomingCall = null;
+    
+    // UI references
+    const connectionStatus = document.getElementById('connection-status');
+    const serverInfo = document.getElementById('server-info');
+    const userList = document.getElementById('user-list');
+    const userCount = document.getElementById('user-count');
+    const callTimerElement = document.getElementById('call-timer');
+    const callPartnerElement = document.getElementById('call-partner');
+    const callerIdElement = document.getElementById('caller-id');
+    const refreshBtn = document.getElementById('refresh-btn');
+    const muteBtn = document.getElementById('mute-btn');
+    const endCallBtn = document.getElementById('end-call-btn');
+    const volumeControl = document.getElementById('volume-control');
+    const rejectBtn = document.getElementById('reject-btn');
+    const acceptBtn = document.getElementById('accept-btn');
+    
+    // Views
+    const inCallView = document.getElementById('in-call-view');
+    const incomingCallView = document.getElementById('incoming-call-view');
+    const userListView = document.getElementById('user-list-view');
+    
+    // Initialize the application
+    async function init() {
+      try {
+        // Initialize media
+        await initMedia();
+        
+        // Initialize socket connection
+        initSocket();
+      } catch (error) {
+        console.error('Initialization error:', error);
+        showError('Failed to initialize application');
+      }
+    }
+    
+    // Initialize media devices
+    async function initMedia() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          },
+          video: false
+        });
+        
+        localStream = stream;
+        document.getElementById('local-audio').srcObject = stream;
+        document.getElementById('local-audio').volume = 0.1;
+      } catch (error) {
+        console.error('Error accessing media devices:', error);
+        showError('Failed to access microphone. Please check permissions.');
+      }
+    }
+    
+    // Initialize socket connection
+    function initSocket() {
+      socket = io(SOCKET_URL, {
+        transports: ['websocket', 'polling'],
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000
+      });
+      
+      // Update server info
+      serverInfo.textContent = `Connected to: ${new URL(SOCKET_URL).hostname}`;
+      
+      socket.on('connect', () => {
+        connectionStatus.textContent = `CONNECTED | ID: ${socket.id.slice(0, 8)}`;
+        currentSocketId = socket.id;
+        socket.emit('get-users');
+      });
+      
+      socket.on('disconnect', () => {
+        connectionStatus.textContent = 'DISCONNECTED';
+        endCall();
+      });
+      
+      socket.on('connect_error', (error) => {
+        connectionStatus.textContent = 'RECONNECTING';
+        console.error('Connection error:', error);
+      });
+      
+      socket.on('user-list-updated', (users) => {
+        updateUserList(users);
+      });
+      
+      socket.on('call-received', (data) => {
+        incomingCall = data;
+        showIncomingCall(data);
+      });
+      
+      socket.on('call-accepted', (data) => {
+        handleCallAccepted(data);
+      });
+      
+      socket.on('call-rejected', () => {
+        showError('Call was rejected');
+        endCall();
+      });
+      
+      socket.on('call-ended', () => {
+        endCall();
+      });
+      
+      socket.on('call-timeout', () => {
+        showError('Call timed out. No answer.');
+        endCall();
+      });
+      
+      socket.on('ice-candidate-received', (data) => {
+        handleIceCandidate(data.candidate);
+      });
+    }
+    
+    // Update user list UI
+    function updateUserList(users) {
+      // Filter out current user
+      const filteredUsers = users.filter(user => user.id !== currentSocketId);
+      
+      if (filteredUsers.length === 0) {
+        userList.innerHTML = `
+          <div class="empty-state">
+            <i class="fas fa-user"></i>
+            <p>No other users online</p>
+            <p class="hint">Open another browser to test</p>
+          </div>
+        `;
+        userCount.textContent = '0';
+        return;
+      }
+      
+      userCount.textContent = filteredUsers.length;
+      
+      userList.innerHTML = filteredUsers.map(user => `
+        <div class="user-item" data-id="${user.id}">
+          <div class="user-info">
+            <div class="avatar">
+              <i class="fas fa-user"></i>
+            </div>
+            <div class="user-id">${user.id.slice(0, 8)}</div>
+            <div class="user-status ${user.status}">
+              ${user.status === 'available' ? 'Available' : 'Busy'}
+            </div>
+          </div>
+          <button class="call-btn ${user.status !== 'available' ? 'disabled' : ''}" 
+                  ${user.status !== 'available' ? 'disabled' : ''}>
+            <i class="fas fa-phone"></i>
+          </button>
+        </div>
+      `).join('');
+      
+      // Add event listeners to call buttons
+      document.querySelectorAll('.call-btn:not(.disabled)').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const userId = btn.closest('.user-item').dataset.id;
+          startCall(userId);
+        });
+      });
+    }
+    
+    // Show incoming call UI
+    function showIncomingCall(data) {
+      callerIdElement.textContent = data.from.slice(0, 8);
+      callPartner = data.from;
+      incomingCallView.classList.remove('hidden');
+      userListView.classList.add('hidden');
+    }
+    
+    // Start a call
+    async function startCall(userId) {
+      try {
+        // Create peer connection
+        peerConnection = new RTCPeerConnection({
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' }
+          ]
+        });
+        
+        // Add local stream tracks
+        localStream.getTracks().forEach(track => {
+          peerConnection.addTrack(track, localStream);
+        });
+        
+        // Handle remote stream
+        peerConnection.ontrack = (event) => {
+          remoteStream = event.streams[0];
+          document.getElementById('remote-audio').srcObject = remoteStream;
+        };
+        
+        // Handle ICE candidates
+        peerConnection.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit('ice-candidate', { 
+              to: userId, 
+              candidate: event.candidate 
+            });
+          }
+        };
+        
+        // Create offer
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        
+        // Send call request
+        socket.emit('call-user', { 
+          to: userId, 
+          offer 
+        });
+        
+        // Update UI
+        callPartner = userId;
+        callPartnerElement.textContent = `In call with ${userId.slice(0, 8)}`;
+        userListView.classList.add('hidden');
+        inCallView.classList.remove('hidden');
+        
+        // Set call timeout (30 seconds)
+        callTimeout = setTimeout(() => {
+          showError('Call timed out. No answer.');
+          endCall();
+        }, 30000);
+        
+      } catch (error) {
+        console.error('Error starting call:', error);
+        showError('Failed to start call');
+        endCall();
+      }
+    }
+    
+    // Accept incoming call
+    async function acceptCall() {
+      try {
+        // Create peer connection
+        peerConnection = new RTCPeerConnection({
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' }
+          ]
+        });
+        
+        // Add local stream tracks
+        localStream.getTracks().forEach(track => {
+          peerConnection.addTrack(track, localStream);
+        });
+        
+        // Handle remote stream
+        peerConnection.ontrack = (event) => {
+          remoteStream = event.streams[0];
+          document.getElementById('remote-audio').srcObject = remoteStream;
+        };
+        
+        // Handle ICE candidates
+        peerConnection.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit('ice-candidate', { 
+              to: callPartner, 
+              candidate: event.candidate 
+            });
+          }
+        };
+        
+        // Set remote description
+        await peerConnection.setRemoteDescription(incomingCall.offer);
+        
+        // Create answer
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        
+        // Send call acceptance
+        socket.emit('call-accepted', { 
+          to: callPartner, 
+          answer 
+        });
+        
+        // Update UI
+        incomingCallView.classList.add('hidden');
+        inCallView.classList.remove('hidden');
+        startCallTimer();
+        
+      } catch (error) {
+        console.error('Error accepting call:', error);
+        showError('Failed to accept call');
+        endCall();
+      }
+    }
+    
+    // Handle call accepted
+    async function handleCallAccepted(data) {
+      try {
+        if (callTimeout) {
+          clearTimeout(callTimeout);
+          callTimeout = null;
+        }
+        
+        await peerConnection.setRemoteDescription(data.answer);
+        
+        // Add any queued ICE candidates
+        iceCandidates.forEach(candidate => {
+          peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        });
+        iceCandidates = [];
+        
+        startCallTimer();
+      } catch (error) {
+        console.error('Error handling call acceptance:', error);
+        showError('Failed to establish call');
+        endCall();
+      }
+    }
+    
+    // Handle ICE candidate
+    async function handleIceCandidate(candidate) {
+      try {
+        if (peerConnection && peerConnection.remoteDescription) {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        } else {
+          iceCandidates.push(candidate);
+        }
+      } catch (error) {
+        console.error('Error adding ICE candidate:', error);
+      }
+    }
+    
+    // End current call
+    function endCall() {
+      // Clear timeouts
+      if (callTimeout) {
+        clearTimeout(callTimeout);
+        callTimeout = null;
+      }
+      
+      if (callTimer) {
+        clearInterval(callTimer);
+        callTimer = null;
+      }
+      
+      // Close peer connection
+      if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+      }
+      
+      // Reset state
+      callDuration = 0;
+      callPartner = null;
+      iceCandidates = [];
+      incomingCall = null;
+      
+      // Reset audio elements
+      document.getElementById('remote-audio').srcObject = null;
+      
+      // Update UI
+      inCallView.classList.add('hidden');
+      incomingCallView.classList.add('hidden');
+      userListView.classList.remove('hidden');
+      callTimerElement.textContent = '00:00';
+      
+      // Notify server call ended
+      if (callPartner) {
+        socket.emit('call-ended', { target: callPartner });
+      }
+    }
+    
+    // Start call timer
+    function startCallTimer() {
+      callDuration = 0;
+      updateCallTimer();
+      callTimer = setInterval(() => {
+        callDuration++;
+        updateCallTimer();
+      }, 1000);
+    }
+    
+    // Update call timer display
+    function updateCallTimer() {
+      const minutes = Math.floor(callDuration / 60).toString().padStart(2, '0');
+      const seconds = (callDuration % 60).toString().padStart(2, '0');
+      callTimerElement.textContent = `${minutes}:${seconds}`;
+    }
+    
+    // Toggle mute
+    function toggleMute() {
+      if (!localStream) return;
+      
+      const isMuted = muteBtn.classList.contains('active');
+      localStream.getAudioTracks().forEach(track => {
+        track.enabled = isMuted;
+      });
+      
+      muteBtn.classList.toggle('active');
+      muteBtn.innerHTML = isMuted ? 
+        '<i class="fas fa-microphone"></i>' : 
+        '<i class="fas fa-microphone-slash"></i>';
+    }
+    
+    // Show error message
+    function showError(message) {
+      const errorElement = document.createElement('div');
+      errorElement.className = 'error-message';
+      errorElement.innerHTML = `
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>${message}</span>
+        <button class="close-error">
+          <i class="fas fa-times"></i>
+        </button>
+      `;
+      
+      document.querySelector('.app-container').prepend(errorElement);
+      
+      // Add close functionality
+      errorElement.querySelector('.close-error').addEventListener('click', () => {
+        errorElement.remove();
+      });
+      
+      // Auto-remove after 5 seconds
+      setTimeout(() => {
+        if (errorElement.parentNode) {
+          errorElement.remove();
+        }
+      }, 5000);
+    }
+    
+    // Event listeners
+    refreshBtn.addEventListener('click', () => {
+      socket.emit('get-users');
+    });
+    
+    muteBtn.addEventListener('click', toggleMute);
+    
+    endCallBtn.addEventListener('click', endCall);
+    
+    volumeControl.addEventListener('input', (e) => {
+      document.getElementById('remote-audio').volume = e.target.value;
+    });
+    
+    rejectBtn.addEventListener('click', () => {
+      socket.emit('call-rejected', { to: callPartner });
+      endCall();
+    });
+    
+    acceptBtn.addEventListener('click', acceptCall);
+    
+    // Initialize the application
+    init();
+  </script>
+</body>
+</html>
